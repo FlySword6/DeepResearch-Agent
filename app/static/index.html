@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepResearch-Agent</title>
+<style>
+  :root {
+    --primary: #1a365d; --primary-light: #2b6cb0; --accent: #c53030;
+    --bg: #f7fafc; --card: #ffffff; --border: #e2e8f0;
+    --text: #2d3748; --muted: #718096;
+    --success: #276749; --success-bg: #f0fff4;
+    --error: #c53030; --error-bg: #fff5f5;
+    --running: #2b6cb0; --running-bg: #ebf8ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+  }
+  .header {
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 20px 24px; position: sticky; top: 0; z-index: 100;
+  }
+  .header-inner {
+    max-width: 1000px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header h1 { font-size: 24px; font-weight: 700; color: var(--primary); }
+  .header h1 span { color: var(--primary-light); }
+  .header .subtitle { font-size: 13px; color: var(--muted); }
+  .container { max-width: 1000px; margin: 0 auto; padding: 24px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--primary); }
+  textarea { width: 100%; min-height: 80px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; font-family: inherit; resize: vertical; }
+  textarea:focus { outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(43,108,176,0.1); }
+  .options-row { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .options-row select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: white; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 24px; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-primary { background: var(--primary-light); color: white; }
+  .btn-primary:hover { background: #1a4f8b; }
+  .btn-primary:disabled { background: #a0aec0; cursor: not-allowed; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 8px 16px; font-size: 13px; }
+  .btn-outline:hover { background: var(--bg); }
+  .btn-sm { padding: 6px 14px; font-size: 13px; }
+  .trace-list { display: flex; flex-direction: column; gap: 6px; }
+  .trace-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; font-size: 14px; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .trace-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .trace-status-pending { background: #edf2f7; color: #a0aec0; }
+  .trace-status-running { background: var(--running-bg); color: var(--running); }
+  .trace-status-completed { background: var(--success-bg); color: var(--success); }
+  .trace-status-failed { background: var(--error-bg); color: var(--error); }
+  .progress-bar { height: 4px; background: #edf2f7; border-radius: 2px; overflow: hidden; margin: 12px 0; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary-light), #63b3ed); border-radius: 2px; transition: width 0.5s ease; }
+  .report-content { line-height: 1.8; font-size: 15px; overflow-wrap: break-word; }
+  .report-content h1 { font-size: 22px; margin: 24px 0 12px; color: var(--primary); }
+  .report-content h2 { font-size: 18px; margin: 20px 0 10px; color: var(--primary); }
+  .report-content h3 { font-size: 16px; margin: 16px 0 8px; }
+  .report-content p { margin: 8px 0; }
+  .report-content ul { margin: 8px 0; padding-left: 24px; }
+  .report-content code { background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  .report-content pre { background: #1a202c; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; margin: 12px 0; }
+  .report-content pre code { background: none; padding: 0; color: inherit; }
+  .report-content blockquote { border-left: 3px solid var(--primary-light); padding-left: 12px; color: var(--muted); margin: 12px 0; }
+  .report-content hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .badge-running { background: var(--running-bg); color: var(--running); }
+  .badge-completed { background: var(--success-bg); color: var(--success); }
+  .badge-failed { background: var(--error-bg); color: var(--error); }
+  .badge-idle { background: #edf2f7; color: var(--muted); }
+  .spinner { width: 16px; height: 16px; border: 2px solid #e2e8f0; border-top-color: var(--primary-light); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .banner-error { background: var(--error-bg); border: 1px solid #fed7d7; border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; margin-bottom: 16px; font-size: 14px; color: var(--error); }
+  .history-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 6px; cursor: pointer; transition: all 0.2s; }
+  .history-item:hover { background: var(--bg); border-color: var(--primary-light); }
+  .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 8px; }
+  .page-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--text); font-size: 13px; cursor: pointer; }
+  .page-btn:hover:not(:disabled) { background: var(--bg); border-color: var(--primary-light); }
+  .page-btn:disabled { color: var(--muted); background: #f7fafc; cursor: not-allowed; }
+  .page-info { font-size: 13px; color: var(--muted); }
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-state h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+  .empty-state p { font-size: 14px; max-width: 400px; margin: 0 auto; }
+  .tool-call { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 32px; font-size: 13px; color: var(--muted); }
+  .tool-call .spinner { width: 12px; height: 12px; border-width: 1.5px; }
+  .connection-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-connected { background: #48bb78; }
+  .dot-disconnected { background: #a0aec0; }
+  .hidden { display: none !important; }
+  .actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <h1>DeepResearch<span>-Agent</span></h1>
+      <div class="subtitle">基于多 Agent 协作的自动化研究分析系统</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="connection-status" id="connStatus">
+        <span class="dot dot-disconnected" id="connDot"></span>
+        <span id="connText">未连接</span>
+      </span>
+      <button class="btn btn-outline btn-sm hidden" id="btnNew" onclick="resetAll()">＋ 新建研究</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="errorBanner" class="banner-error hidden">
+    <span>⚠</span>
+    <span id="errorText"></span>
+    <button style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--error);font-size:16px;" onclick="closeError()">✕</button>
+  </div>
+
+  <div id="inputPanel" class="card">
+    <h2>🔬 研究课题</h2>
+    <textarea id="taskInput" placeholder="输入研究课题，例如：分析 2026 年 AI Agent 行业趋势并生成投资分析报告"></textarea>
+    <div class="options-row">
+      <select id="depthSelect">
+        <option value="quick">⚡ 快速</option>
+        <option value="standard" selected>📊 标准</option>
+        <option value="deep">🔍 深度</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:4px;font-size:14px;cursor:pointer;">
+        <input type="checkbox" id="ragCheck" style="width:16px;height:16px;"> 🧠 RAG 知识库
+      </label>
+      <button class="btn btn-outline btn-sm" onclick="showKnowledgePanel()">📚 管理知识库</button>
+      <button class="btn btn-primary" id="btnStart" onclick="doStart()">▶ 开始研究</button>
+    </div>
+  </div>
+
+  <div id="progressPanel" class="card hidden">
+    <h2><span>🤖 Agent 执行轨迹</span><span class="badge badge-running" id="statusBadge">运行中</span></h2>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="trace-list" id="traceList"></div>
+  </div>
+
+  <div id="reportPanel" class="card hidden">
+    <h2>📄 研究报告</h2>
+    <div class="report-content" id="reportContent"></div>
+    <div class="actions-row" id="reportActions">
+      <button class="btn btn-outline btn-sm" onclick="downloadMarkdown()">📥 下载 Markdown</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadPDF()">📥 下载 PDF</button>
+    </div>
+  </div>
+
+  <div id="historyPanel" class="card">
+    <h2>📋 历史研究</h2>
+    <div id="historyToolbar" style="margin-bottom:8px;"></div>
+    <div id="historyList">
+      <div class="empty-state"><div class="icon">🔬</div><h3>准备好开始研究了</h3><p>输入一个研究课题，系统将自动搜索、分析并生成研究报告</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- KNOWLEDGE PANEL -->
+<div id="knowledgePanel" class="hidden" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:1000;display:flex;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.2);padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:18px;font-weight:600;color:var(--primary);margin:0;">📚 知识库管理</h2>
+      <button class="btn btn-outline btn-sm" onclick="hideKnowledgePanel()">✕ 关闭</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:8px;">📄 导入文档</h3>
+      <textarea id="knowledgeContent" rows="4" style="width:100%;margin-bottom:8px;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:14px;resize:vertical;" placeholder="粘贴文档内容..."></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="text" id="knowledgeSource" placeholder="文档名称/来源" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+        <button class="btn btn-primary" style="padding:8px 16px;" onclick="ingestDocument()">导入</button>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:8px;">🔍 检索测试</h3>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="ragQuery" placeholder="输入检索关键词..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+        <button class="btn btn-outline" style="padding:8px 16px;" onclick="searchKnowledge()">检索</button>
+      </div>
+      <div id="ragResults" style="margin-top:8px;font-size:14px;color:var(--muted);"></div>
+    </div>
+    <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+    <div>
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:8px;">📋 文档列表</h3>
+      <div id="docList" style="font-size:14px;color:var(--muted);"></div>
+      <button class="btn btn-outline btn-sm" onclick="loadDocList()" style="margin-top:8px;">⟳ 刷新</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var currentTaskId = null;
+var currentReport = '';
+var evSource = null;
+var isRunning = false;
+
+var histPage = 1;
+var histTotalPages = 1;
+var histBatchMode = false;
+
+function $(id){ return document.getElementById(id); }
+var E = {
+  taskInput:$('taskInput'), btnStart:$('btnStart'), depthSelect:$('depthSelect'), ragCheck:$('ragCheck'),
+  inputPanel:$('inputPanel'), progressPanel:$('progressPanel'), reportPanel:$('reportPanel'), reportContent:$('reportContent'),
+  traceList:$('traceList'), progressFill:$('progressFill'), statusBadge:$('statusBadge'),
+  errorBanner:$('errorBanner'), errorText:$('errorText'), btnNew:$('btnNew'), historyList:$('historyList'),
+  historyToolbar:$('historyToolbar'), connDot:$('connDot'), connText:$('connText')
+};
+
+function closeError(){ E.errorBanner.classList.add('hidden'); }
+function showError(msg){ E.errorText.textContent = msg; E.errorBanner.classList.remove('hidden'); }
+function setConnected(ok){
+  E.connDot.className = 'dot ' + (ok ? 'dot-connected' : 'dot-disconnected');
+  E.connText.textContent = ok ? '已连接' : '未连接';
+}
+
+function hideKnowledgePanel(){ $('knowledgePanel').classList.add('hidden'); }
+function showKnowledgePanel(){ $('knowledgePanel').classList.remove('hidden'); loadDocList(); }
+
+function doStart(){
+  var task = E.taskInput.value.trim();
+  if(!task){ E.taskInput.focus(); return; }
+  closeError();
+  currentReport = ''; isRunning = true;
+  E.inputPanel.classList.add('hidden');
+  E.progressPanel.classList.remove('hidden');
+  E.reportPanel.classList.add('hidden');
+  E.btnNew.classList.add('hidden');
+  E.traceList.innerHTML = '';
+  E.reportContent.innerHTML = '';
+  E.progressFill.style.width = '0%';
+  E.statusBadge.textContent = '运行中';
+  E.statusBadge.className = 'badge badge-running';
+  E.btnStart.disabled = true;
+  addTrace('system','running','正在启动研究流程...');
+  var depthMap = {quick:1,standard:3,deep:5};
+  fetch('/api/research',{method:'POST',headers:{'Content-Type':'application/json'},body: JSON.stringify({task:task,max_iterations:depthMap[E.depthSelect.value]||3,use_rag:E.ragCheck.checked})})
+    .then(function(r){ if(!r.ok) return r.json().then(function(e){ throw new Error(e.detail||'请求失败'); }); return r.json(); })
+    .then(function(d){ currentTaskId = d.task_id; addTrace('system','completed','任务已创建: '+currentTaskId); connectSSE(currentTaskId); })
+    .catch(function(e){ showError(e.message); resetRunState(); });
+}
+
+function connectSSE(taskId){
+  if(evSource) evSource.close();
+  setConnected(true);
+  evSource = new EventSource('/api/research/'+taskId+'/stream');
+  evSource.addEventListener('agent_status',function(e){ var d=JSON.parse(e.data); addTrace(d.agent||'agent',d.status||'running',d.detail||d.message||''); });
+  evSource.addEventListener('report_chunk',function(e){ var d=JSON.parse(e.data); if(d.chunk){ currentReport+=d.chunk; renderReport(); } });
+  evSource.addEventListener('completed',function(e){ var d=JSON.parse(e.data); if(d.report) currentReport=d.report; renderReport(); finishRun(); });
+  evSource.addEventListener('error',function(e){ var d=JSON.parse(e.data); showError(d.message||'出错'); finishRun(); });
+  evSource.onerror = function(){ setConnected(false); pollTask(taskId); };
+}
+
+function pollTask(taskId){
+  var a=0; (function c(){ if(!isRunning) return; fetch('/api/research/'+taskId).then(function(r){ return r.ok?r.json():null; }).then(function(d){ if(!d) return; if(d.status==='completed'||d.status==='failed'){ fetch('/api/reports/'+taskId+'?format=markdown').then(function(r){ return r.ok?r.text():''; }).then(function(t){ if(t){ currentReport=t; renderReport(); } }); if(d.status==='failed') showError(d.errors?.[0]||'失败'); finishRun(); return; } if(++a<120) setTimeout(c,1000); }).catch(function(){ if(++a<120) setTimeout(c,1000); }); })();
+}
+
+function finishRun(){
+  isRunning=false; if(evSource){ evSource.close(); evSource=null; }
+  E.statusBadge.textContent='已完成'; E.statusBadge.className='badge badge-completed';
+  E.progressFill.style.width='100%'; E.btnStart.disabled=false;
+  E.btnNew.classList.remove('hidden'); E.reportPanel.classList.remove('hidden');
+  addTrace('system','completed','研究流程完成');
+  loadHistory();
+}
+function resetRunState(){ isRunning=false; if(evSource){ evSource.close(); evSource=null; } E.btnStart.disabled=false; E.btnNew.classList.remove('hidden'); }
+function resetAll(){ if(evSource){ evSource.close(); evSource=null; } currentTaskId=null; currentReport=''; isRunning=false; E.inputPanel.classList.remove('hidden'); E.progressPanel.classList.add('hidden'); E.reportPanel.classList.add('hidden'); E.btnNew.classList.add('hidden'); E.traceList.innerHTML=''; E.reportContent.innerHTML=''; E.progressFill.style.width='0%'; E.statusBadge.textContent='就绪'; E.statusBadge.className='badge badge-idle'; E.btnStart.disabled=false; closeError(); loadHistory(); }
+
+function addTrace(agent,status,msg){
+  var icons={planner:'📋',researcher:'🔍',writer:'✍',reviewer:'✅',system:'⚙'}; var icon=icons[(agent||'').toLowerCase()]||'🤖';
+  var stMap={running:'运行中',completed:'已完成',failed:'失败'}; var stCls={running:'trace-status-running',completed:'trace-status-completed',failed:'trace-status-failed'};
+  var div=document.createElement('div'); div.className='trace-item';
+  div.innerHTML='<div class="trace-icon '+(stCls[status]||'trace-status-completed')+'">'+icon+'</div><div style="flex:1"><div style="font-weight:500;font-size:14px;">'+(agent.charAt(0).toUpperCase()+agent.slice(1))+' Agent<span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">'+(stMap[status]||status)+'</span></div><div style="font-size:13px;color:var(--muted);margin-top:2px;">'+msg+'</div></div>';
+  E.traceList.appendChild(div);
+}
+
+function renderReport(){
+  if(!currentReport) return;
+  E.reportPanel.classList.remove('hidden');
+  var h = currentReport.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/^- (.+)$/gm,'<li>$1</li>').replace(/^---$/gm,'<hr>');
+  h = '<p>'+h+'</p>'; h = h.replace(/<\/li>\n<li>/g,'</li><li>'); h = h.replace(/(<li>[\s\S]*?<\/li>)/g,'<ul>$1</ul>'); h = h.replace(/<\/ul>\s*<ul>/g,'');
+  E.reportContent.innerHTML = h;
+}
+
+function downloadMarkdown(){ if(!currentTaskId) return; fetch('/api/reports/'+currentTaskId+'?format=markdown').then(function(r){ return r.text(); }).then(function(t){ var b=new Blob([t],{type:'text/markdown'}); var u=URL.createObjectURL(b); var a=document.createElement('a'); a.href=u; a.download='report-'+currentTaskId+'.md'; a.click(); }); }
+function downloadPDF(){ if(!currentTaskId) return; fetch('/api/reports/'+currentTaskId+'?format=pdf').then(function(r){ return r.blob(); }).then(function(b){ var u=URL.createObjectURL(b); var a=document.createElement('a'); a.href=u; a.download='report-'+currentTaskId+'.pdf'; a.click(); }); }
+
+/* ========== HISTORY with BATCH ========== */
+function loadHistory(page){
+  page = page || 1;
+  fetch('/api/history?page='+page+'&per_page=5').then(function(r){ return r.ok ? r.json() : null; }).then(function(data){
+    if(!data) return;
+    var tasks = data.tasks || [];
+    if(!tasks.length){ E.historyList.innerHTML = '<div class="empty-state"><div class="icon">📋</div><h3>暂无历史记录</h3></div>'; E.historyToolbar.innerHTML=''; return; }
+    histPage = data.page || 1; histTotalPages = data.total_pages || 1;
+
+    var h = tasks.map(function(t){
+      var tid = t.task_id || t.report_id || '';
+      var taskName = t.task || tid || '研究任务';
+      var cb = histBatchMode ? '<input type="checkbox" class="hist-cb" value="'+tid+'" style="margin-right:8px;width:16px;height:16px;">' : '';
+      var clickHandler = histBatchMode ? '' : 'onclick="viewHistory(\''+tid+'\')"';
+      return '<div class="history-item" '+clickHandler+'>'+cb+'<div style="flex:1">'
+        +'<div style="font-weight:500;font-size:14px;">'+taskName+'</div>'
+        +'<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+(t.created_at?new Date(t.created_at).toLocaleString():'')
+        +'<span class="badge '+(t.status==='completed'?'badge-completed':'badge-failed')+'" style="margin-left:6px;">'+(t.status==='completed'?'已完成':'失败')+'</span></div></div>'
+        +'<span style="color:var(--muted);font-size:18px;">→</span></div>';
+    }).join('');
+
+    // Toolbar
+    var tb = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">';
+    if(!histBatchMode){
+      tb += '<button class="btn btn-outline btn-sm" onclick="toggleHistBatch()">☑ 批量管理</button>';
+    } else {
+      tb += '<button class="btn btn-outline btn-sm" onclick="toggleHistBatch()">✕ 退出批量</button>';
+      tb += '<button class="btn btn-outline btn-sm" onclick="selectAllHist()">全选</button>';
+      tb += '<button class="btn btn-outline btn-sm" onclick="deselectAllHist()">取消</button>';
+      tb += '<button class="btn btn-outline btn-sm" onclick="batchDeleteHist()" style="color:var(--accent);border-color:var(--accent);">删除选中</button>';
+    }
+    tb += '</div>';
+
+    var pager = histTotalPages > 1 ? '<div class="pagination"><button class="page-btn" onclick="loadHistory('+(histPage-1)+')" '+(histPage<=1?'disabled':'')+'>‹ 上一页</button><span class="page-info">'+histPage+'/'+histTotalPages+'</span><button class="page-btn" onclick="loadHistory('+(histPage+1)+')" '+(histPage>=histTotalPages?'disabled':'')+'>下一页 ›</button></div>' : '';
+
+    E.historyToolbar.innerHTML = tb;
+    E.historyList.innerHTML = h + pager;
+  }).catch(function(){ console.warn('History load failed'); });
+}
+
+function viewHistory(taskId){
+  if(!taskId) return;
+  fetch('/api/reports/'+taskId+'?format=markdown').then(function(r){ return r.ok ? r.text() : null; }).then(function(txt){
+    if(!txt){ showError('无法加载历史报告'); return; }
+    if(evSource){ evSource.close(); evSource = null; }
+    isRunning = false; currentReport = txt; currentTaskId = taskId;
+    renderReport();
+    E.reportPanel.classList.remove('hidden');
+    E.inputPanel.classList.add('hidden');
+    E.progressPanel.classList.add('hidden');
+    E.btnNew.classList.remove('hidden');
+  }).catch(function(){ showError('加载历史报告失败'); });
+}
+
+function toggleHistBatch(){ histBatchMode = !histBatchMode; loadHistory(histPage); }
+function selectAllHist(){ document.querySelectorAll('.hist-cb').forEach(function(cb){ cb.checked = true; }); }
+function deselectAllHist(){ document.querySelectorAll('.hist-cb').forEach(function(cb){ cb.checked = false; }); }
+
+function batchDeleteHist(){
+  var ids = []; document.querySelectorAll('.hist-cb:checked').forEach(function(cb){ ids.push(cb.value); });
+  if(!ids.length) return;
+  if(!confirm('确定删除选中的 '+ids.length+' 条记录？')) return;
+  fetch('/api/reports/batch-delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(ids)})
+    .then(function(r){ if(!r.ok) throw new Error('删除失败'); histBatchMode = false; loadHistory(1); })
+    .catch(function(){ showError('批量删除失败'); });
+}
+
+/* ========== KNOWLEDGE ========== */
+function ingestDocument(){
+  var content = $('knowledgeContent').value.trim();
+  var source = $('knowledgeSource').value.trim();
+  if(!content){ showError('请输入文档内容'); return; }
+  if(!source){ showError('请输入文档名称'); return; }
+  fetch('/api/knowledge/ingest', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content:content, source:source})})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ alert('导入成功！共 ' + (d.count||0) + ' 个文本块'); $('knowledgeContent').value=''; $('knowledgeSource').value=''; loadDocList(); })
+    .catch(function(e){
+      if(e && e.message) showError('导入失败: '+e.message);
+      else if(e && e.detail) showError('导入失败: '+e.detail);
+      else showError('导入失败，请查看控制台');
+      console.error('ingest error:', e);
+    });
+}
+
+function searchKnowledge(){
+  var q = $('ragQuery').value.trim(); if(!q) return;
+  fetch('/api/knowledge/search?q=' + encodeURIComponent(q))
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var el = $('ragResults');
+      if(!d || d.length === 0){ el.innerHTML = '未找到相关结果'; return; }
+      el.innerHTML = '<div style="margin-bottom:8px;color:var(--muted);font-size:13px;">共找到 ' + d.length + ' 条结果</div>' +
+        d.map(function(item,i){ return '<div style="margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:8px;">'
+          +'<div style="font-weight:500;font-size:13px;color:var(--primary);">'+(item.metadata&&item.metadata.source?item.metadata.source:'片段 '+(i+1))+'</div>'
+          +'<div style="font-size:12px;color:var(--text);margin-top:2px;">'+(item.text||'').substring(0,300)+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:2px;">评分: '+(typeof item.score==='number'?item.score.toFixed(3):'N/A')+'</div></div>'; }).join('');
+    }).catch(function(){ $('ragResults').innerHTML = '检索失败'; });
+}
+
+function loadDocList(){
+  fetch('/api/knowledge/list')
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(docs){
+      var el = $('docList');
+      if(!docs || docs.length === 0){ el.innerHTML = '知识库为空'; return; }
+      el.innerHTML = docs.map(function(d){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">'
+          +'<span style="font-size:13px;">'+d.source+' <span style="color:var(--muted);font-size:11px;">('+d.chunks+' 块)</span></span>'
+          +'<button class="btn-outline btn-sm" style="color:var(--accent);border-color:var(--accent);padding:3px 8px;font-size:11px;" onclick="deleteDoc(\''+d.source.replace(/'/g,"\\'")+'\')">删除</button></div>';
+      }).join('');
+    }).catch(function(){ $('docList').innerHTML = '加载失败'; });
+}
+
+function deleteDoc(source){
+  if(!confirm('确定删除「'+source+'」？')) return;
+  fetch('/api/knowledge/docs', {method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({source:source})})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(){ loadDocList(); })
+    .catch(function(){ showError('删除失败'); });
+}
+
+document.addEventListener('DOMContentLoaded', function(){ loadHistory(); });
+loadHistory();
+</script>
+</body>
+</html>

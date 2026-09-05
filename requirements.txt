@@ -1,0 +1,65 @@
+# Core
+python-dotenv>=1.0.0
+
+# Web framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+pydantic-settings>=2.1.0
+python-multipart>=0.0.7
+
+# Workflow
+langgraph>=0.2.0
+langchain-core>=0.3.0
+
+# LLM
+openai>=1.13.0
+anthropic>=0.25.0
+
+# Search
+tavily-python>=0.3.0
+duckduckgo_search>=6.0.0
+
+# Storage
+chromadb>=0.4.24
+redis>=5.0.0
+sqlalchemy[asyncio]>=2.0.0
+aiosqlite>=0.20.0
+
+# Async
+httpx>=0.27.0
+aiohttp>=3.9.0
+
+# Browser automation (reserved; BrowserTool currently uses httpx+BeautifulSoup)
+playwright>=1.41.0
+
+# Web scraping
+beautifulsoup4>=4.12.0
+pypdf>=4.0.0
+
+# PDF generation
+reportlab>=4.0.0
+
+# Numerical
+numpy>=1.24.0
+
+# Utils
+tenacity>=8.2.0
+rich>=13.7.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Optional worker queue
+arq>=0.26.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# Dev
+mypy>=1.8.0
+ruff>=0.2.0
+
+# RAG — hybrid search
+rank-bm25>=0.2.0
+pymilvus>=2.4.0
