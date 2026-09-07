@@ -12,8 +12,8 @@ Provides a unified tool interface for all memory operations:
 import logging
 from typing import Any, Dict, List, Optional
 
-from app.memory.session_memory import SessionMemory
 from app.memory.knowledge_memory import KnowledgeMemory
+from app.memory.session_memory import SessionMemory
 from app.models.state import ResearchState
 from app.tools.base import BaseTool, ToolResult
 

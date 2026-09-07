@@ -1,8 +1,9 @@
 """用于存储生成后研究报告的模型。"""
 
-from typing import List, Optional
-from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import List
+
+from pydantic import BaseModel, Field
 
 
 class ReportSection(BaseModel):

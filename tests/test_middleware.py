@@ -3,6 +3,7 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
 from app.middleware import register_middleware
 from app.utils.logger import get_request_id
 

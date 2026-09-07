@@ -3,9 +3,6 @@
 import io
 import logging
 import re
-import sys
-
-import pytest
 
 from app.utils.logger import setup_logging
 

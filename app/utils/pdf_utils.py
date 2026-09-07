@@ -2,7 +2,21 @@
 import logging
 import os
 import re
-from typing import List
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.platypus import (
+    BaseDocTemplate,
+    Frame,
+    HRFlowable,
+    ListFlowable,
+    ListItem,
+    PageTemplate,
+    Paragraph,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +62,6 @@ try:
 except ImportError:
     _FONT_REGULAR = "Helvetica"
     _FONT_BOLD = "Helvetica-Bold"
-
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import mm, cm
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
-from reportlab.platypus import (
-    BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer,
-    ListFlowable, ListItem, HRFlowable,
-)
 
 _PRIMARY = colors.HexColor("#1a365d")
 _SECONDARY = colors.HexColor("#2b6cb0")
@@ -113,38 +117,46 @@ def _build(md, out):
     lines = md.split("\n")
     i = 0
     while i < len(lines):
-        l = lines[i]
-        if l.strip().startswith("```"):
+        line = lines[i]
+        if line.strip().startswith("```"):
             if in_code:
                 story.append(_code("\n".join(buf)))
-                buf = []; in_code = False
+                buf = []
+                in_code = False
             else:
                 in_code = True
-            i += 1; continue
+            i += 1
+            continue
         if in_code:
-            buf.append(l); i += 1; continue
-        if l.strip() == "":
-            i += 1; continue
-        if l.strip() == "---":
+            buf.append(line)
+            i += 1
+            continue
+        if line.strip() == "":
+            i += 1
+            continue
+        if line.strip() == "---":
             story.append(HRFlowable(width="100%", thickness=0.5, color=_BORDER, spaceBefore=8, spaceAfter=8))
-            i += 1; continue
-        m = re.match(r"^(#{1,4})\s+(.+)$", l)
+            i += 1
+            continue
+        m = re.match(r"^(#{1,4})\s+(.+)$", line)
         if m:
             story.append(_h(m.group(2), len(m.group(1))))
             if len(m.group(1)) == 1:
                 story.append(HRFlowable(width="100%", thickness=1, color=_PRIMARY, spaceBefore=2, spaceAfter=12))
-            i += 1; continue
-        if l.startswith(">"):
-            story.append(_bq(l.lstrip(">").strip()))
-            i += 1; continue
-        if re.match(r"^[\-\*]\s+", l):
+            i += 1
+            continue
+        if line.startswith(">"):
+            story.append(_bq(line.lstrip(">").strip()))
+            i += 1
+            continue
+        if re.match(r"^[\-\*]\s+", line):
             items = []
             while i < len(lines) and re.match(r"^[\-\*]\s+", lines[i]):
                 items.append(re.sub(r"^[\-\*]\s+", "", lines[i]))
                 i += 1
             story.append(_li(items, "bullet"))
             continue
-        if re.match(r"^\d+\.\s+", l):
+        if re.match(r"^\d+\.\s+", line):
             items = []
             while i < len(lines) and re.match(r"^\d+\.\s+", lines[i]):
                 items.append(re.sub(r"^\d+\.\s+", "", lines[i]))

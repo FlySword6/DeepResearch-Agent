@@ -1,7 +1,7 @@
 """Tests for PDF generation utilities."""
 
 import os
-import tempfile
+
 import pytest
 
 from app.utils.pdf_utils import generate_pdf, generate_pdf_from_html

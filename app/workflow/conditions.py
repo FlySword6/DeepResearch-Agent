@@ -1,6 +1,5 @@
 """Conditional edge functions for the LangGraph workflow."""
 
-from typing import Dict
 
 from app.models.state import ResearchState
 

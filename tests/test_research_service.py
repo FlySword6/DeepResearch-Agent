@@ -1,7 +1,9 @@
 """Tests for the ResearchService."""
 
 import asyncio
+
 import pytest
+
 from app.services.research_service import ResearchService
 
 

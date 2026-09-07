@@ -42,7 +42,7 @@ class ReviewerAgent(BaseAgent):
 
         return (
             f"{today_hint()}\n\n"
-            """你是一名研究报告质量评审专家。请从以下四个维度评估报告质量，每项满分 10 分：
+            """你是一名研究报告质量评审专家（quality reviewer）。请从以下四个维度评估报告质量，每项满分 10 分：
 
 1. **信息完整性**（权重 30%）：是否覆盖了研究问题的所有核心方面？是否有明显的信息缺口？
 2. **引用质量**（权重 25%）：是否每个关键事实都有明确来源？引用格式是否规范？
@@ -74,7 +74,7 @@ class ReviewerAgent(BaseAgent):
         if not state.report_draft:
             return {
                 "review_score": 0.0,
-                "review_feedback": "没有报告草稿可供评估。",
+                "review_feedback": "没有报告草稿可供评估。No report draft available.",
                 "iteration_count": state.iteration_count + 1,
             }
 

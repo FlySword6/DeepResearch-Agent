@@ -4,16 +4,16 @@ import logging
 import uuid
 from typing import Optional
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 from app.models.state import ResearchState
 from app.workflow.nodes import (
-    planner_node,
     executor_node,
-    writer_node,
-    reviewer_node,
     formatter_node,
+    planner_node,
+    reviewer_node,
     router_decision,
+    writer_node,
 )
 
 logger = logging.getLogger(__name__)

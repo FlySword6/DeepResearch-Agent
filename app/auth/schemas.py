@@ -1,5 +1,4 @@
 """用户注册和登录使用的认证模型。"""
-from typing import Optional
 from pydantic import BaseModel, Field
 
 

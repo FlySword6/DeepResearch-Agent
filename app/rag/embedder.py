@@ -9,7 +9,7 @@ import logging
 import math
 import os
 from collections import Counter
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 
@@ -109,7 +109,15 @@ class Embedder:
             return []
 
         if self._mode == "openai":
-            return await self._embed_openai(texts)
+            try:
+                return await self._embed_openai(texts)
+            except Exception as exc:
+                logger.warning(
+                    "External embedding unavailable, using local fallback: %s",
+                    exc,
+                )
+                self._mode = "sklearn" if self._sklearn_vectorizer is not None else "simple"
+                return await self.embed_batch(texts)
         elif self._mode == "sklearn":
             return self._embed_sklearn(texts)
         else:
@@ -198,7 +206,6 @@ class Embedder:
             # 完全没有词表时返回零向量。
             return [[0.0] * 8 for _ in texts]
 
-        word_set = set(self._vocab)
         vectors: List[List[float]] = []
         for text in texts:
             tokens = self._tokenize(text)

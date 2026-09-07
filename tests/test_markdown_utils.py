@@ -1,6 +1,5 @@
 """Tests for markdown_utils: formatting, source extraction, HTML conversion."""
 
-import pytest
 from app.utils.markdown_utils import (
     extract_sources_from_report,
     format_report,

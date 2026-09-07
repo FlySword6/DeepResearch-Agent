@@ -38,9 +38,11 @@ def _to_dict(profile: UserProfileModel) -> dict:
 
 
 async def _load_profile(profile_id: str) -> Optional[dict]:
-    from app.models.database import _async_session_maker
+    from app.models import database as db
 
-    async with _async_session_maker() as session:
+    if db._async_session_maker is None:
+        return None
+    async with db._async_session_maker() as session:
         repo = UserProfileRepository(session)
         profile = await repo.get(profile_id)
         return _to_dict(profile) if profile else None
@@ -57,9 +59,11 @@ async def get_profile(profile_id: str) -> Optional[dict]:
 
 
 async def _create_profile(profile_id: str, user_id: Optional[str]) -> dict:
-    from app.models.database import _async_session_maker
+    from app.models import database as db
 
-    async with _async_session_maker() as session:
+    if db._async_session_maker is None:
+        return _to_dict(UserProfileModel(id=profile_id, user_id=user_id))
+    async with db._async_session_maker() as session:
         repo = UserProfileRepository(session)
         created = await repo.create(UserProfileModel(id=profile_id, user_id=user_id))
     invalidate_profiles_cache()
@@ -76,9 +80,11 @@ async def get_default_profile() -> dict:
 
 async def get_or_create_profile(user_id: str) -> dict:
     """Return the profile bound to an authenticated user, creating it if missing."""
-    from app.models.database import _async_session_maker
+    from app.models import database as db
 
-    async with _async_session_maker() as session:
+    if db._async_session_maker is None:
+        return _to_dict(UserProfileModel(id=f"profile_{user_id}", user_id=user_id))
+    async with db._async_session_maker() as session:
         repo = UserProfileRepository(session)
         existing = await repo.get_by_user(user_id)
         if existing is not None:
@@ -97,9 +103,11 @@ async def get_effective_profile(user: Optional[dict]) -> dict:
 
 async def update_profile(profile_id: str, data: Dict[str, Any]) -> Optional[dict]:
     """Update profile fields. Returns updated dict, or None if missing."""
-    from app.models.database import _async_session_maker
+    from app.models import database as db
 
-    async with _async_session_maker() as session:
+    if db._async_session_maker is None:
+        return None
+    async with db._async_session_maker() as session:
         repo = UserProfileRepository(session)
         profile = await repo.get(profile_id)
         if profile is None:

@@ -1,17 +1,14 @@
 """Tests for the LangGraph workflow graph."""
 
 import pytest
+
 from app.models.state import ResearchState, SubTask
+from app.workflow.events import set_event_callback
 from app.workflow.graph import build_graph
 from app.workflow.nodes import (
-    router_decision,
-    planner_node,
     executor_node,
-    writer_node,
-    reviewer_node,
-    formatter_node,
+    router_decision,
 )
-from app.workflow.events import set_event_callback
 
 
 class TestResearchState:

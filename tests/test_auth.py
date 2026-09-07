@@ -1,14 +1,15 @@
 """Tests for the authentication module: password hashing, JWT, registration, login."""
 
 import pytest
+
 from app.auth.service import (
-    hash_password,
-    verify_password,
+    authenticate_user,
     create_access_token,
     create_refresh_token,
     decode_token,
+    hash_password,
     register_user,
-    authenticate_user,
+    verify_password,
 )
 
 

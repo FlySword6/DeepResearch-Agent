@@ -3,14 +3,14 @@
 import logging
 import time
 import uuid
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.utils.logger import get_request_id, set_request_id
+from app.utils.logger import set_request_id
 
 logger = logging.getLogger(__name__)
 

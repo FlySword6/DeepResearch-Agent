@@ -7,14 +7,13 @@ and the init_db / close_db lifecycle.
 import pytest
 
 from app.models.database import (
-    TaskModel,
     ReportModel,
-    TaskEventModel,
-    TaskRepository,
     ReportRepository,
     TaskEventRepository,
-    init_db,
+    TaskModel,
+    TaskRepository,
     close_db,
+    init_db,
 )
 
 

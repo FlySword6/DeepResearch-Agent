@@ -7,13 +7,12 @@ structure for SearchTool, BrowserTool, and PythonTool.
 
 import pytest
 
-from app.tools.base import BaseTool, ToolResult
+from app.tools.base import ToolResult
+from app.tools.browser import BrowserTool
+from app.tools.memory import MemoryTool
+from app.tools.python_executor import PythonTool
 from app.tools.router import ToolRouter
 from app.tools.search import SearchTool
-from app.tools.browser import BrowserTool
-from app.tools.python_executor import PythonTool
-from app.tools.memory import MemoryTool
-
 
 # ======================================================================
 # ToolRouter
@@ -25,7 +24,7 @@ class TestToolRouter:
     def test_init_registers_defaults(self):
         router = ToolRouter()
         names = {t.name for t in router._tools.values()}
-        assert names == {"search", "browse", "analyze", "memory", "rag_retrieve"}
+        assert names == {"search", "browse", "analyze", "memory", "rag_retrieve", "read_workspace"}
 
     def test_get_tool_known(self):
         router = ToolRouter()
@@ -48,7 +47,7 @@ class TestToolRouter:
         summary = router.list_tools()
         assert isinstance(summary, list)
         names = {s["name"] for s in summary}
-        assert names == {"search", "browse", "analyze", "memory", "rag_retrieve"}
+        assert names == {"search", "browse", "analyze", "memory", "rag_retrieve", "read_workspace"}
 
     @pytest.mark.asyncio
     async def test_execute_unknown_raises(self):

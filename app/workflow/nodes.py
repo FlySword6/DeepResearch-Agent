@@ -57,12 +57,12 @@ def router_decision(state: ResearchState) -> str:
     if state.iteration_count >= state.max_iterations:
         return "formatter"
 
-    # If this is the first review and score is very low, iterate with writer
-    if state.iteration_count < 2 and state.review_score < 0.5:
+    # 低于通过线时回到 Writer，根据评审意见继续打磨。
+    if state.iteration_count < state.max_iterations and state.review_score < 0.7:
         return "writer"
 
     # Score meets threshold, proceed to formatter
-    if state.review_score >= 0.5:
+    if state.review_score >= 0.7:
         return "formatter"
 
     # Otherwise iterate with writer

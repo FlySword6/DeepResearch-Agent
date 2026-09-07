@@ -4,7 +4,6 @@
 并通过简单关键词重叠评分（类似 TF-IDF）实现检索。
 """
 
-import json
 import logging
 import math
 import time

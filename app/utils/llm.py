@@ -4,8 +4,8 @@ import json
 import os
 from contextvars import ContextVar
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 _usage_meter: ContextVar[Optional[list]] = ContextVar("usage_meter", default=None)
 
@@ -70,6 +70,9 @@ async def llm_call(
     tools: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """统一 LLM 调用入口。"""
+    if os.getenv("PYTEST_CURRENT_TEST") and os.getenv("ALLOW_LIVE_LLM_TESTS") != "1":
+        raise ValueError("Live LLM calls are disabled during tests")
+
     if config is None:
         config = LLMConfig()
 
@@ -94,6 +97,7 @@ async def _call_openai(
     DeepSeek 兼容 OpenAI Chat Completions 协议，因此共用这个调用路径。
     """
     from openai import AsyncOpenAI
+
     from app.config import settings
     from app.services.config_service import get_active_config
 
@@ -137,6 +141,7 @@ async def _call_anthropic(
 ) -> str:
     """调用 Anthropic API。"""
     from anthropic import AsyncAnthropic
+
     from app.config import settings
     from app.services.config_service import get_active_config
 

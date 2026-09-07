@@ -86,7 +86,7 @@ class PlannerAgent(BaseAgent):
             )
             parsed = self._parse_plan(response)
             subtasks = parsed.get("subtasks") or []
-            if subtasks and len(subtasks) >= 4:
+            if subtasks:
                 plan = []
                 for i, st in enumerate(subtasks[:10]):
                     plan.append(SubTask(
@@ -129,6 +129,11 @@ class PlannerAgent(BaseAgent):
                         "perspectives": parsed.get("perspectives", []),
                     }
         return {"subtasks": [], "perspectives": []}
+
+    def _parse_subtasks(self, response: str):
+        """兼容旧测试和旧调用方：只返回解析出的子任务列表。"""
+        subtasks = self._parse_plan(response).get("subtasks") or []
+        return subtasks or None
 
     def _fallback_plan(self, state: ResearchState) -> Dict[str, Any]:
         task = state.task

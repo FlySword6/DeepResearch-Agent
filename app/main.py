@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 import math
-import uuid
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Literal, Optional
@@ -23,13 +23,13 @@ from typing import Any, AsyncGenerator, Dict, List, Literal, Optional
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-
 from pydantic import BaseModel, Field
 
-from app.config import settings
 from app.auth.dependencies import get_optional_user
+from app.auth.router import router as auth_router
+from app.config import settings
 from app.middleware import register_middleware
-from app.models.database import init_db, close_db
+from app.models.database import close_db, init_db
 from app.models.schemas import (
     EvolutionAcceptRequest,
     EvolutionDraftResponse,
@@ -56,12 +56,14 @@ from app.services.config_service import (
     mask_api_key,
     save_runtime_config,
 )
-from app.services.report_service import ReportService
+from app.services.evolution_service import accept_draft, list_drafts, reject_draft
 from app.services.profile_service import (
     get_effective_profile,
+)
+from app.services.profile_service import (
     update_profile as update_user_profile,
 )
-from app.services.evolution_service import accept_draft, list_drafts, reject_draft
+from app.services.report_service import ReportService
 from app.services.skill_service import (
     DuplicateSkillNameError,
     InvalidSkillError,
@@ -132,7 +134,7 @@ async def _test_llm_connection(config: RuntimeLLMConfig) -> SettingsTestResult:
         if "401" in err_msg or "authentication_error" in err_msg or "Unauthorized" in err_msg:
             return SettingsTestResult(success=False, message="API Key 无效，请检查后重试")
         if "404" in err_msg or "not found" in err_msg.lower():
-            return SettingsTestResult(success=False, message=f"Base URL 或模型名称不正确")
+            return SettingsTestResult(success=False, message="Base URL 或模型名称不正确")
         return SettingsTestResult(success=False, message=f"连接失败: {type(exc).__name__}")
 
 
@@ -203,11 +205,7 @@ app = FastAPI(
 # Register middleware (CORS, request logging, error handling)
 register_middleware(app)
 
-# Register auth router
-from app.auth.router import router as auth_router
 app.include_router(auth_router)
-
-import os
 
 # Mount static files (fallback UI — always available)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -463,7 +461,7 @@ async def stream_research_events(request: Request, task_id: str):
                         yield f"event: {event_type}\ndata: {data_json}\n\n"
 
                 except asyncio.TimeoutError:
-                    yield f": keepalive\n\n"
+                    yield ": keepalive\n\n"
 
         finally:
             _task_manager.unregister_sse_queue(task_id, event_queue)
@@ -877,7 +875,7 @@ async def api_match_skills(
 ):
     """Return skills that would match a task for the current profile."""
     profile = await get_effective_profile(current_user)
-    from app.services.skill_service import VALID_AGENTS, match_skills
+    from app.services.skill_service import VALID_AGENTS
 
     if payload.agent:
         return SkillMatchResponse(

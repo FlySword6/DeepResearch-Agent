@@ -1,18 +1,17 @@
 """Tests for the RAG system (DocumentLoader, TextChunker, Embedder, VectorStore, RAGRetriever, RAGRetrieverTool)."""
 
 import os
-import shutil
 import tempfile
+
 import pytest
 
-from app.rag.document_loader import DocumentLoader
 from app.rag.chunker import TextChunker
+from app.rag.document_loader import DocumentLoader
 from app.rag.embedder import Embedder
-from app.rag.vector_store import VectorStore
 from app.rag.retriever import RAGRetriever
+from app.rag.vector_store import VectorStore
 from app.tools.rag_retriever import RAGRetrieverTool
 from app.tools.router import ToolRouter
-
 
 # ======================================================================
 # DocumentLoader

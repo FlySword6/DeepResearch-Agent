@@ -1,5 +1,4 @@
 """认证 API 路由：注册、登录和刷新 token。"""
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 

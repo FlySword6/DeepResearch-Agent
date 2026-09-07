@@ -17,8 +17,8 @@ from app.models.database import TaskModel, TaskRepository
 from app.services.direct_answer_service import DirectAnswerService
 from app.services.query_router import QueryRoute, QueryRouter
 from app.services.report_service import ReportService
-from app.workflow.events import set_event_callback
 from app.workflow.engine import run_research as run_workflow
+from app.workflow.events import set_event_callback
 
 logger = logging.getLogger(__name__)
 

@@ -1,14 +1,14 @@
 """Tests for the dual memory system (SessionMemory and KnowledgeMemory)."""
 
 import asyncio
-import pytest
 import time
 
-from app.memory.session_memory import SessionMemory
+import pytest
+
 from app.memory.knowledge_memory import KnowledgeMemory
+from app.memory.session_memory import SessionMemory
 from app.models.state import ResearchState, SubTask
 from app.tools.memory import MemoryTool
-
 
 # ======================================================================
 # SessionMemory

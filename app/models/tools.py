@@ -1,6 +1,7 @@
 """Agent 工具调用和响应模型。"""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
 
 

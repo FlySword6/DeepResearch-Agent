@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from app.rag.embedder import Embedder
 from app.config import settings
+from app.rag.embedder import Embedder
 
 logger = logging.getLogger(__name__)
 

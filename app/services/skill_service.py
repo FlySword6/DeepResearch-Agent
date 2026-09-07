@@ -63,6 +63,12 @@ def invalidate_cache() -> None:
     _skills_cache = None
 
 
+def _session_maker():
+    from app.models import database as db
+
+    return db._async_session_maker
+
+
 def _to_dict(skill: SkillModel) -> dict:
     return {
         "id": skill.id,
@@ -85,9 +91,11 @@ def _validate_agents(agents: List[str]) -> None:
 
 
 async def _load_all() -> List[dict]:
-    from app.models.database import _async_session_maker
+    session_maker = _session_maker()
 
-    async with _async_session_maker() as session:
+    if session_maker is None:
+        return []
+    async with session_maker() as session:
         repo = SkillRepository(session)
         return [_to_dict(skill) for skill in await repo.list_all()]
 
@@ -106,9 +114,13 @@ async def list_skills() -> List[dict]:
 
 async def _profile_skill_ids(profile_id: str) -> List[str]:
     """IDs of skills visible to a profile: private + globals not explicitly disabled."""
-    from app.models.database import UserSkillPrefRepository, _async_session_maker
+    from app.models.database import UserSkillPrefRepository
 
-    async with _async_session_maker() as session:
+    session_maker = _session_maker()
+    if session_maker is None:
+        return []
+
+    async with session_maker() as session:
         repo = SkillRepository(session)
         prefs = UserSkillPrefRepository(session)
         disabled = await prefs.list_disabled(profile_id)
@@ -146,11 +158,13 @@ async def get_skill(skill_id: str) -> Optional[dict]:
 async def create_skill(data: Dict[str, Any]) -> dict:
     """Create a skill and return it as a dict. Raises on duplicate name or invalid agents."""
     global _skills_cache
-    from app.models.database import _async_session_maker
+    session_maker = _session_maker()
+    if session_maker is None:
+        raise InvalidSkillError("数据库未初始化，无法创建技能")
 
     agents = data.get("agents", [])
     _validate_agents(agents)
-    async with _async_session_maker() as session:
+    async with session_maker() as session:
         repo = SkillRepository(session)
         if await repo.get_by_name(data["name"]):
             raise DuplicateSkillNameError(f"技能名称已存在: {data['name']}")
@@ -172,9 +186,11 @@ async def create_skill(data: Dict[str, Any]) -> dict:
 async def update_skill(skill_id: str, data: Dict[str, Any]) -> Optional[dict]:
     """Update a skill. Returns updated dict, or None if the skill does not exist."""
     global _skills_cache
-    from app.models.database import _async_session_maker
+    session_maker = _session_maker()
+    if session_maker is None:
+        return None
 
-    async with _async_session_maker() as session:
+    async with session_maker() as session:
         repo = SkillRepository(session)
         skill = await repo.get(skill_id)
         if skill is None:
@@ -203,9 +219,11 @@ async def update_skill(skill_id: str, data: Dict[str, Any]) -> Optional[dict]:
 async def delete_skill(skill_id: str) -> bool:
     """Delete a skill. Returns True if deleted, False if not found."""
     global _skills_cache
-    from app.models.database import _async_session_maker
+    session_maker = _session_maker()
+    if session_maker is None:
+        return False
 
-    async with _async_session_maker() as session:
+    async with session_maker() as session:
         repo = SkillRepository(session)
         deleted = await repo.delete(skill_id)
     if deleted:
@@ -262,9 +280,13 @@ async def match_skills(
 
 async def set_skill_pref(profile_id: str, skill_id: str, enabled: bool) -> bool:
     """Enable/disable a global skill for a profile. Returns False if skill is not global."""
-    from app.models.database import UserSkillPrefRepository, _async_session_maker
+    from app.models.database import UserSkillPrefRepository
 
-    async with _async_session_maker() as session:
+    session_maker = _session_maker()
+    if session_maker is None:
+        return False
+
+    async with session_maker() as session:
         repo = SkillRepository(session)
         skill = await repo.get(skill_id)
         if skill is None or skill.owner_id is not None:
@@ -322,9 +344,11 @@ async def enrich_prompt(
 async def seed_builtin_skills() -> int:
     """Seed built-in skills when the skills table is empty. Returns count inserted."""
     global _skills_cache
-    from app.models.database import _async_session_maker
+    session_maker = _session_maker()
+    if session_maker is None:
+        return 0
 
-    async with _async_session_maker() as session:
+    async with session_maker() as session:
         repo = SkillRepository(session)
         if await repo.count() > 0:
             return 0

@@ -6,11 +6,10 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.config import settings
 from app.models.state import ResearchState
 from app.services.report_service import ReportService
 from app.workflow.engine import run_research as run_workflow
-from app.workflow.events import emit_node_event_before, emit_node_event_after, set_event_callback
+from app.workflow.events import emit_node_event_after, emit_node_event_before, set_event_callback
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.utils.markdown_utils import format_report, extract_sources_from_report
+from app.utils.markdown_utils import format_report
 from app.utils.pdf_utils import generate_pdf
 
 logger = logging.getLogger(__name__)
@@ -155,6 +155,11 @@ class ReportService:
             return reports
 
         # Reports may live under the workspace root instead of the legacy dir.
+        # Only apply this compatibility scan for the default service location;
+        # callers that pass a custom output_dir expect isolation.
+        default_output_dir = os.path.realpath("./data/reports")
+        if os.path.realpath(self._output_dir) != default_output_dir:
+            return reports
         try:
             from app.config import settings
             from app.services.workspace import WorkspaceManager
@@ -292,7 +297,6 @@ class ReportService:
         logger.info("Markdown report saved: %s", fpath)
 
         # Also save a copy with the original task name for history lookups
-        from app.utils.markdown_utils import format_report
         # Extract first heading as task name
         task_name = os.path.basename(task_path)
         for line in content.split("\n"):

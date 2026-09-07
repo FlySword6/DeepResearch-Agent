@@ -3,9 +3,9 @@
 import logging
 from typing import Any, Dict, Optional
 
-from app.tools.base import BaseTool, ToolResult
 from app.rag.retriever import RAGRetriever
 from app.rag.service import get_rag_retriever
+from app.tools.base import BaseTool, ToolResult
 
 logger = logging.getLogger(__name__)
 

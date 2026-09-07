@@ -6,7 +6,6 @@ from typing import Literal
 
 from app.config import settings
 
-
 RouteName = Literal["direct_search", "multi_agent"]
 
 

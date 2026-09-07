@@ -56,7 +56,7 @@ class SearchTool(BaseTool):
 
         source_order = {"tavily": 0, "exa": 1, "github": 2, "duckduckgo": 3}
         all_results.sort(key=lambda item: source_order.get(str(item.get("source", "")), 99))
-        limit = max(1, max_results) * 2
+        limit = max(1, max_results)
         all_results = all_results[:limit]
 
         return ToolResult(

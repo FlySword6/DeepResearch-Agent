@@ -295,6 +295,11 @@ class ResearcherAgent(BaseAgent):
         return {}
 
     @staticmethod
+    def _extract_url(description: str) -> Optional[str]:
+        """兼容旧调用方：从任务描述中提取第一个 URL。"""
+        return _extract_url(description)
+
+    @staticmethod
     def _extract_sources(raw_result: Any, tool_name: str) -> List[Dict[str, str]]:
         """Extract source metadata from a tool result."""
         sources = []

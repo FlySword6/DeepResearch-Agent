@@ -109,6 +109,7 @@ async def register_user(username: str, password: str) -> Optional[dict]:
     """注册新用户；用户名已存在时返回 None。"""
     try:
         from sqlalchemy import select
+
         from app.models import database as db
 
         if db._async_session_maker is not None:
@@ -142,6 +143,7 @@ async def authenticate_user(username: str, password: str) -> Optional[dict]:
     """按用户名和密码认证用户；失败时返回 None。"""
     try:
         from sqlalchemy import select
+
         from app.models import database as db
 
         if db._async_session_maker is not None:
