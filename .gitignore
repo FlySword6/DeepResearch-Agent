@@ -19,3 +19,4 @@ docs/
 *.log
 web.local.*.log
 data/rag_index/
+data/workspaces/

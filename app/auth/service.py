@@ -41,11 +41,12 @@ def create_access_token(user_id: str, username: str) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str, username: str = "") -> str:
     """创建签名后的 JWT refresh token，有效期更长。"""
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": user_id,
+        "username": username,
         "exp": expire,
         "type": "refresh",
     }
@@ -106,9 +107,57 @@ def _in_memory_login(username: str, password: str) -> Optional[dict]:
 
 async def register_user(username: str, password: str) -> Optional[dict]:
     """注册新用户；用户名已存在时返回 None。"""
+    try:
+        from sqlalchemy import select
+        from app.models import database as db
+
+        if db._async_session_maker is not None:
+            async with db._async_session_maker() as session:
+                result = await session.execute(
+                    select(db.UserModel).where(db.UserModel.username == username)
+                )
+                if result.scalars().first() is not None:
+                    return None
+
+                user = db.UserModel(
+                    id=f"user_{uuid.uuid4().hex[:12]}",
+                    username=username,
+                    password_hash=hash_password(password),
+                )
+                session.add(user)
+                await session.commit()
+                await session.refresh(user)
+                return {
+                    "id": user.id,
+                    "username": user.username,
+                    "created_at": user.created_at.isoformat() if user.created_at else "",
+                }
+    except Exception as exc:
+        logger.warning("Database-backed registration failed, using memory store: %s", exc)
+
     return _in_memory_register(username, password)
 
 
 async def authenticate_user(username: str, password: str) -> Optional[dict]:
     """按用户名和密码认证用户；失败时返回 None。"""
+    try:
+        from sqlalchemy import select
+        from app.models import database as db
+
+        if db._async_session_maker is not None:
+            async with db._async_session_maker() as session:
+                result = await session.execute(
+                    select(db.UserModel).where(db.UserModel.username == username)
+                )
+                user = result.scalars().first()
+                if user is None or not verify_password(password, user.password_hash):
+                    return None
+                return {
+                    "id": user.id,
+                    "username": user.username,
+                    "created_at": user.created_at.isoformat() if user.created_at else "",
+                }
+    except Exception as exc:
+        logger.warning("Database-backed login failed, using memory store: %s", exc)
+
     return _in_memory_login(username, password)

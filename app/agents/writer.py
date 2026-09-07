@@ -119,7 +119,10 @@ class WriterAgent(BaseAgent):
             report = report.strip()
 
             # Enforce minimum length; if LLM returned short, pad with fallback
-            if len(report) < _MIN_REPORT_CHARS:
+            if not report:
+                logger.warning("WriterAgent returned empty report, using structured fallback")
+                report = self._fallback_report(state)
+            elif len(report) < _MIN_REPORT_CHARS:
                 logger.warning(
                     "WriterAgent report too short (%d chars), appending fallback sections",
                     len(report),
@@ -275,15 +278,18 @@ class WriterAgent(BaseAgent):
                         s = (item.get("snippet") or item.get("content") or "").strip().replace("\\n", "\n")[:500]
                         u = item.get("url", "")
                         if t:
-                            out.append(f"**{t}**")
+                            out.append(f"- **{t}**")
                         if u:
-                            out.append(f"链接: [{u}]({u})")
+                            out.append(f"  链接: [{u}]({u})")
                         if s:
-                            out.append(s)
+                            out.append(f"  {s}")
                         out.append("")
                     return "\n".join(out)
             except json.JSONDecodeError:
                 pass
 
+        # 工具摘要里可能包含 “## 搜索结果 ...” 这样的标题。
+        # 在兜底报告中它们只是证据条目，降级成列表可避免页面出现巨大的搜索结果标题。
+        text = re.sub(r"(?m)^#{1,6}\s+", "- ", text)
         text = re.sub(r"\s+", " ", text).strip()
         return text[:1000] if text else ""

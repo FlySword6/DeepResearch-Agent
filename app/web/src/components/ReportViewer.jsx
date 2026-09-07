@@ -167,9 +167,8 @@ export default function ReportViewer({ taskId, content, events }) {
   const [showCitations, setShowCitations] = useState(false)
 
   const reportContent = useMemo(() => {
-    if (!content) return ''
     const completedEvent = events?.find((e) => e.type === 'completed')
-    return completedEvent?.data?.report || content
+    return completedEvent?.data?.report || completedEvent?.report || content || ''
   }, [content, events])
 
   const citations = useMemo(() => {
@@ -215,7 +214,7 @@ export default function ReportViewer({ taskId, content, events }) {
     }
   }
 
-  if (!content) return null
+  if (!reportContent) return null
 
   return (
     <div className="animate-fade-in h-full">

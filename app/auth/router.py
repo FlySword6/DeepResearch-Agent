@@ -33,7 +33,7 @@ async def login(body: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     access_token = create_access_token(user["id"], user["username"])
-    refresh_token = create_refresh_token(user["id"])
+    refresh_token = create_refresh_token(user["id"], user["username"])
 
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
@@ -51,7 +51,7 @@ async def refresh(body: dict):
     username = payload.get("username", user_id)
 
     new_access = create_access_token(user_id, username)
-    new_refresh = create_refresh_token(user_id)
+    new_refresh = create_refresh_token(user_id, username)
 
     return TokenResponse(access_token=new_access, refresh_token=new_refresh)
 

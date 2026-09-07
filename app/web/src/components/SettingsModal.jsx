@@ -3,12 +3,20 @@ import ModalShell from './ModalShell'
 
 const PROVIDERS = [
   { value: 'openai', label: 'OpenAI' },
+  { value: 'deepseek', label: 'DeepSeek' },
   { value: 'anthropic', label: 'Anthropic' },
 ]
 
 const DEFAULT_BASE_URLS = {
   openai: 'https://api.openai.com/v1',
+  deepseek: 'https://api.deepseek.com',
   anthropic: 'https://api.anthropic.com',
+}
+
+const DEFAULT_MODELS = {
+  openai: 'gpt-4o',
+  deepseek: 'deepseek-chat',
+  anthropic: 'claude-3-5-sonnet-latest',
 }
 
 export default function SettingsModal({ isOpen, onClose, onSaved }) {
@@ -68,6 +76,9 @@ export default function SettingsModal({ isOpen, onClose, onSaved }) {
     setProvider(newProvider)
     if (!baseUrl || baseUrl === DEFAULT_BASE_URLS[provider]) {
       setBaseUrl(DEFAULT_BASE_URLS[newProvider] || '')
+    }
+    if (!model || model === DEFAULT_MODELS[provider]) {
+      setModel(DEFAULT_MODELS[newProvider] || '')
     }
   }
 
@@ -164,9 +175,16 @@ export default function SettingsModal({ isOpen, onClose, onSaved }) {
               type="text"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="gpt-4o"
+              placeholder={DEFAULT_MODELS[provider] || 'model-name'}
+              list="llm-model-presets"
               className="input"
             />
+            <datalist id="llm-model-presets">
+              <option value="deepseek-chat" />
+              <option value="deepseek-reasoner" />
+              <option value="gpt-4o" />
+              <option value="claude-3-5-sonnet-latest" />
+            </datalist>
           </div>
 
           {/* Base URL */}

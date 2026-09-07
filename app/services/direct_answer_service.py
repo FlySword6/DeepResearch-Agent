@@ -2,7 +2,10 @@
 
 import json
 import logging
+import re
 from typing import Any, Dict, List
+
+import httpx
 
 from app.config import settings
 from app.services.config_service import get_active_config
@@ -28,6 +31,10 @@ class DirectAnswerService:
     async def answer(self, question: str) -> Dict[str, Any]:
         """执行直接搜索问答，返回报告文本和来源列表。"""
         max_results = getattr(settings, "DIRECT_SEARCH_MAX_RESULTS", 5)
+
+        weather_answer = await self._answer_weather(question)
+        if weather_answer is not None:
+            return weather_answer
 
         emit(
             "agent_status",
@@ -108,12 +115,17 @@ class DirectAnswerService:
             f"{json.dumps(sources, ensure_ascii=False, indent=2)}"
         )
 
-        return await self._llm.call_with_fallback(
+        answer = await self._llm.call_with_fallback(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             fallback_response=fallback,
             config=config,
         )
+        if answer and answer.strip():
+            return answer
+
+        logger.warning("Direct answer LLM returned empty content, using search fallback")
+        return fallback
 
     def _normalize_sources(self, data: Any) -> List[Dict[str, str]]:
         """把 SearchTool 的返回值整理成报告可引用的来源列表。"""
@@ -170,4 +182,165 @@ class DirectAnswerService:
             else:
                 lines.append(f"{index}. {title}")
             lines.append(f"   {snippet}")
+        return "\n".join(lines)
+
+    async def _answer_weather(self, question: str) -> Dict[str, Any] | None:
+        """对天气类简单问题走专用实时天气接口，避免搜索摘要不稳定。"""
+        if not self._is_weather_question(question):
+            return None
+
+        city = self._extract_weather_city(question)
+        if not city:
+            return None
+
+        emit(
+            "agent_status",
+            agent="Weather",
+            status="running",
+            detail=f"天气问题路线：查询 {city} 实时天气",
+        )
+        emit("tool_call", tool="weather", params={"location": city})
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(f"https://wttr.in/{city}", params={"format": "j1"})
+                response.raise_for_status()
+                data = response.json()
+        except Exception as exc:
+            logger.warning("Weather lookup failed, fallback to search: %s", exc)
+            emit(
+                "tool_result",
+                tool="weather",
+                status="failed",
+                result=str(exc),
+            )
+            return None
+
+        report = self._format_weather_report(question, city, data)
+        if not report:
+            return None
+
+        emit(
+            "tool_result",
+            tool="weather",
+            status="completed",
+            result=report[:500],
+        )
+        emit(
+            "agent_status",
+            agent="Weather",
+            status="completed",
+            detail="实时天气查询完成",
+        )
+
+        return {
+            "report": report,
+            "sources": [
+                {
+                    "title": "wttr.in weather data",
+                    "url": f"https://wttr.in/{city}",
+                    "snippet": "实时天气与短期预报数据",
+                    "source": "weather",
+                }
+            ],
+            "review_score": 1.0,
+            "review_feedback": "Weather route; skipped multi-agent review.",
+        }
+
+    @staticmethod
+    def _is_weather_question(question: str) -> bool:
+        """判断是否为天气、气温、降雨等即时信息问题。"""
+        q = question.lower()
+        return any(word in q for word in ("天气", "气温", "温度", "下雨", "降雨", "冷不冷", "热不热", "weather"))
+
+    @staticmethod
+    def _extract_weather_city(question: str) -> str:
+        """从常见中文天气问法中提取城市名。"""
+        city_aliases = {
+            "南京": "Nanjing",
+            "北京": "Beijing",
+            "上海": "Shanghai",
+            "广州": "Guangzhou",
+            "深圳": "Shenzhen",
+            "杭州": "Hangzhou",
+            "苏州": "Suzhou",
+            "成都": "Chengdu",
+            "武汉": "Wuhan",
+            "西安": "Xi'an",
+            "重庆": "Chongqing",
+            "天津": "Tianjin",
+        }
+        for name, query_name in city_aliases.items():
+            if name in question:
+                return query_name
+
+        match = re.search(r"今天(.+?)(?:天气|气温|温度|会下雨|下雨)", question)
+        if match:
+            return match.group(1).strip(" 的怎么样如何?")
+        return ""
+
+    @staticmethod
+    def _format_weather_report(question: str, city: str, data: Dict[str, Any]) -> str:
+        """把 wttr.in 返回的天气 JSON 格式化成中文短答案。"""
+        current = (data.get("current_condition") or [{}])[0]
+        today = (data.get("weather") or [{}])[0]
+        area = (data.get("nearest_area") or [{}])[0]
+        area_name = ((area.get("areaName") or [{}])[0]).get("value") or city
+        region = ((area.get("region") or [{}])[0]).get("value") or ""
+
+        desc = ((current.get("weatherDesc") or [{}])[0]).get("value") or "暂无描述"
+        temp = current.get("temp_C", "")
+        feels = current.get("FeelsLikeC", "")
+        humidity = current.get("humidity", "")
+        wind = current.get("windspeedKmph", "")
+        wind_dir = current.get("winddir16Point", "")
+        precip = current.get("precipMM", "")
+        max_temp = today.get("maxtempC", "")
+        min_temp = today.get("mintempC", "")
+        uv = today.get("uvIndex") or current.get("uvIndex", "")
+        date = today.get("date", "")
+
+        rain_chances = []
+        for item in today.get("hourly") or []:
+            chance = item.get("chanceofrain")
+            if chance not in (None, ""):
+                try:
+                    rain_chances.append(int(chance))
+                except ValueError:
+                    pass
+        max_rain = max(rain_chances) if rain_chances else None
+
+        lines = [
+            "## 直接答案",
+            "",
+            f"今天 {area_name}{f'（{region}）' if region else ''}天气：{desc}。",
+        ]
+        if temp:
+            lines.append(f"当前气温约 {temp}℃，体感约 {feels or temp}℃。")
+        if max_temp or min_temp:
+            lines.append(f"今日气温大约 {min_temp or '?'}℃ - {max_temp or '?'}℃。")
+        if humidity:
+            lines.append(f"湿度约 {humidity}%。")
+        if wind:
+            lines.append(f"风速约 {wind} km/h，风向 {wind_dir or '暂无'}。")
+        if precip:
+            lines.append(f"当前降水量约 {precip} mm。")
+        if max_rain is not None:
+            lines.append(f"今日分时预报中的最高降雨概率约 {max_rain}%。")
+        if uv:
+            lines.append(f"紫外线指数约 {uv}。")
+
+        lines.extend([
+            "",
+            "## 建议",
+            "",
+            "- 出门前可以再看一次本地天气 App，实时降雨和雷达图会更准。",
+            "- 如果长时间在户外，注意防晒和补水。",
+            "",
+            "## 来源",
+            "",
+            f"- wttr.in 实时天气接口（查询城市：{city}，日期：{date or 'today'}）",
+            "",
+            f"> 原始问题：{question}",
+        ])
         return "\n".join(lines)

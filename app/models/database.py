@@ -52,6 +52,17 @@ class TaskModel(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
+class UserModel(Base):
+    """Persistent application user account."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    username: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class ReportModel(Base):
     """Persistent report record tied to a task."""
 
@@ -71,6 +82,7 @@ class TaskEventModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     task_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    event_seq: Mapped[int] = mapped_column(Integer, default=0, index=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     event_data: Mapped[str] = mapped_column(Text, default="{}")  # JSON
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -178,6 +190,14 @@ async def _migrate_task_state_columns(conn) -> None:
         )
 
 
+async def _migrate_task_event_columns(conn) -> None:
+    """Add task_events.event_seq on pre-existing databases (idempotent)."""
+    rows = (await conn.execute(text("PRAGMA table_info(task_events)"))).fetchall()
+    names = {row[1] for row in rows}
+    if "event_seq" not in names:
+        await conn.execute(text("ALTER TABLE task_events ADD COLUMN event_seq INTEGER DEFAULT 0"))
+
+
 def get_db_url() -> str:
     """Return the configured database URL."""
     from app.config import settings
@@ -197,6 +217,7 @@ async def init_db(db_url: Optional[str] = None) -> None:
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_skills_owner_column(conn)
         await _migrate_task_state_columns(conn)
+        await _migrate_task_event_columns(conn)
 
 
 async def close_db() -> None:
@@ -285,9 +306,16 @@ class TaskEventRepository:
     def __init__(self, session):
         self._session = session
 
-    async def add_event(self, task_id: str, event_type: str, data: Dict[str, Any]) -> TaskEventModel:
+    async def add_event(
+        self,
+        task_id: str,
+        event_type: str,
+        data: Dict[str, Any],
+        event_seq: int = 0,
+    ) -> TaskEventModel:
         event = TaskEventModel(
             task_id=task_id,
+            event_seq=event_seq,
             event_type=event_type,
             event_data=json.dumps(data, default=str),
         )
@@ -296,7 +324,12 @@ class TaskEventRepository:
         return event
 
     async def get_events(self, task_id: str, limit: int = 200) -> List[TaskEventModel]:
-        stmt = select(TaskEventModel).where(TaskEventModel.task_id == task_id).order_by(TaskEventModel.id.asc()).limit(limit)
+        stmt = (
+            select(TaskEventModel)
+            .where(TaskEventModel.task_id == task_id)
+            .order_by(TaskEventModel.event_seq.asc(), TaskEventModel.id.asc())
+            .limit(limit)
+        )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 

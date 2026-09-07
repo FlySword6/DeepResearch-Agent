@@ -108,7 +108,7 @@ def _invalidate_config_cache() -> None:
 async def _test_llm_connection(config: RuntimeLLMConfig) -> SettingsTestResult:
     """Test an LLM configuration by making a minimal API call."""
     try:
-        if config.provider == "openai":
+        if config.provider in ("openai", "deepseek"):
             from openai import AsyncOpenAI
 
             client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url)
@@ -496,6 +496,38 @@ async def get_task_status(task_id: str) -> TaskStatusResponse:
     )
 
 
+@app.get("/api/research/{task_id}/events")
+async def get_task_events(task_id: str):
+    """Return persisted or in-memory events for a task."""
+    task_info = _task_manager.get_task(task_id)
+    if task_info and task_info.events:
+        return {"task_id": task_id, "events": task_info.events}
+
+    try:
+        from app.models.database import TaskEventRepository, _async_session_maker
+
+        if _async_session_maker is not None:
+            async with _async_session_maker() as session:
+                repo = TaskEventRepository(session)
+                rows = await repo.get_events(task_id, limit=500)
+                return {
+                    "task_id": task_id,
+                    "events": [
+                        {
+                            "type": row.event_type,
+                            "seq": row.event_seq,
+                            "data": json.loads(row.event_data or "{}"),
+                            "timestamp": row.created_at.isoformat() if row.created_at else "",
+                        }
+                        for row in rows
+                    ],
+                }
+    except Exception as exc:
+        logger.warning("Failed to load events for %s: %s", task_id, exc)
+
+    return {"task_id": task_id, "events": []}
+
+
 @app.get("/api/reports/{task_id}")
 async def download_report(
     task_id: str,
@@ -505,7 +537,7 @@ async def download_report(
     task_info = _task_manager.get_task(task_id)
 
     # If in-memory task exists and is completed, serve from memory
-    if task_info and task_info.status == "completed":
+    if task_info and task_info.status == "completed" and task_info.final_report.strip():
         if format == "pdf":
             try:
                 report_content = task_info.final_report

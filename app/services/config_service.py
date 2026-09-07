@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_BASE_URLS = {
     "openai": "https://api.openai.com/v1",
     "anthropic": "https://api.anthropic.com",
+    "deepseek": "https://api.deepseek.com",
 }
 
 
@@ -129,6 +130,13 @@ def get_active_config() -> RuntimeLLMConfig:
             api_key=settings.OPENAI_API_KEY,
             model=settings.LLM_MODEL_PLANNER,
             base_url=settings.OPENAI_BASE_URL or "",
+        )
+    if settings.DEEPSEEK_API_KEY:
+        return RuntimeLLMConfig(
+            provider="deepseek",
+            api_key=settings.DEEPSEEK_API_KEY,
+            model=settings.LLM_MODEL_PLANNER,
+            base_url=settings.DEEPSEEK_BASE_URL or "",
         )
     if settings.ANTHROPIC_API_KEY:
         return RuntimeLLMConfig(

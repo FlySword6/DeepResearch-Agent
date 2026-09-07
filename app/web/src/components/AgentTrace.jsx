@@ -7,6 +7,7 @@ const AGENT_META = {
   writer:   { label: '写作',      icon: '✍️',  color: 'text-[#a98fc0]' },
   reviewer: { label: '审查',      icon: '✅',  color: 'text-[#c08a3e]' },
   workflow: { label: '工作流',    icon: '🔄',  color: 'text-[var(--accent)]' },
+  formatter: { label: '格式化',   icon: '📝',  color: 'text-[var(--text-secondary)]' },
   'harness planner': { label: 'Harness 规划', icon: '📋', color: 'text-[var(--accent)]' },
   'harness researcher': { label: 'Harness 研究', icon: '🔍', color: 'text-[#7fa05f]' },
   'harness writer': { label: 'Harness 写作', icon: '✍️', color: 'text-[#a98fc0]' },
@@ -17,8 +18,19 @@ const AGENT_META = {
 const STATUS_CFG = {
   running:   { label: '执行中', color: 'text-[var(--accent)]',  bg: 'bg-[var(--accent-glow)]', border: 'border-[var(--border-accent)]', pulse: true },
   completed: { label: '完成',   color: 'text-[var(--success)]', bg: 'bg-[var(--success-bg)]', border: 'border-[var(--success)]/20' },
+  fallback:  { label: '兜底',   color: 'text-[#c08a3e]', bg: 'bg-[var(--surface-hover)]', border: 'border-[var(--border-subtle)]' },
   failed:    { label: '失败',   color: 'text-[var(--error)]',   bg: 'bg-[var(--error-bg)]',   border: 'border-[var(--error)]/20' },
   pending:   { label: '等待',   color: 'text-[var(--text-muted)]', bg: 'bg-[var(--surface)]',  border: 'border-[var(--border-subtle)]' },
+}
+
+function normalizeEvent(event) {
+  if (!event) return { type: '', data: {}, timestamp: '' }
+  const { type, data, timestamp, ...rest } = event
+  return {
+    type,
+    data: data && Object.keys(data).length > 0 ? data : rest,
+    timestamp,
+  }
 }
 
 function StatusBadge({ status }) {
@@ -93,7 +105,8 @@ function TimelineEntry({ entry, isLast }) {
 export default function AgentTrace({ events, isComplete, isConnected }) {
   const matchedSkills = useMemo(() => {
     const seen = []
-    for (const e of events || []) {
+    for (const rawEvent of events || []) {
+      const e = normalizeEvent(rawEvent)
       if (e.type === 'skills_matched') {
         for (const s of e.data?.skills || []) {
           if (!seen.includes(s)) seen.push(s)
@@ -103,17 +116,24 @@ export default function AgentTrace({ events, isComplete, isConnected }) {
     return seen
   }, [events])
 
-  const { timelineEntries, latestEntry } = useMemo(() => {
+  const timelineEntries = useMemo(() => {
     if (!events || events.length === 0) {
-      return { timelineEntries: [], latestEntry: null }
+      return []
     }
+
+    const orderedEvents = [...events].sort((a, b) => {
+      const seqA = Number(a?.seq || a?.data?.seq || 0)
+      const seqB = Number(b?.seq || b?.data?.seq || 0)
+      if (seqA && seqB && seqA !== seqB) return seqA - seqB
+      return 0
+    })
 
     // Build timeline: group consecutive tool events under the last agent_status
     const entries = []
     let currentEntry = null
 
-    events.forEach((event, idx) => {
-      const { type, data, timestamp } = event
+    orderedEvents.forEach((rawEvent, idx) => {
+      const { type, data, timestamp } = normalizeEvent(rawEvent)
 
       if (type === 'agent_status') {
         const agentName = data?.agent || 'unknown'
@@ -131,6 +151,39 @@ export default function AgentTrace({ events, isComplete, isConnected }) {
           subEvents: [],
         }
         entries.push(currentEntry)
+      } else if (type === 'agent_result') {
+        const agentName = data?.agent || 'unknown'
+        const agentType = agentName.toLowerCase()
+        const target =
+          [...entries].reverse().find((entry) => entry.agentType === agentType) ||
+          currentEntry
+
+        if (target) {
+          target.status = data?.status || 'completed'
+          const resultParts = []
+          if (data?.plan_size !== undefined) resultParts.push(`计划 ${data.plan_size} 项`)
+          if (data?.steps !== undefined) resultParts.push(`完成 ${data.steps} 个子任务`)
+          if (data?.draft_length !== undefined) resultParts.push(`草稿 ${data.draft_length} 字符`)
+          if (data?.score !== undefined) resultParts.push(`评分 ${data.score}`)
+          if (data?.report_length !== undefined) resultParts.push(`报告 ${data.report_length} 字符`)
+          if (resultParts.length > 0) {
+            target.subEvents.push({
+              status: data?.status || 'completed',
+              text: resultParts.join(' · '),
+            })
+          }
+        } else {
+          const meta = AGENT_META[agentType] || AGENT_META.system
+          entries.push({
+            id: idx,
+            agentLabel: meta.label,
+            agentType,
+            status: data?.status || 'completed',
+            detail: data?.detail || null,
+            timestamp,
+            subEvents: [],
+          })
+        }
       } else if (type === 'tool_call') {
         if (currentEntry && currentEntry.subEvents) {
           currentEntry.subEvents.push({
@@ -164,20 +217,21 @@ export default function AgentTrace({ events, isComplete, isConnected }) {
           })
         }
       } else if (type === 'completed') {
-        if (currentEntry) currentEntry.status = 'completed'
+        entries.forEach((entry) => {
+          if (entry.status === 'running') entry.status = 'completed'
+        })
       }
     })
 
-    return {
-      timelineEntries: entries,
-      latestEntry: entries[entries.length - 1] || null,
-    }
-  }, [events])
+    return isComplete
+      ? entries.map((entry) => ({
+          ...entry,
+          status: entry.status === 'running' ? 'completed' : entry.status,
+        }))
+      : entries
+  }, [events, isComplete])
 
   if (!events || events.length === 0) return null
-
-  // Show only the current status card.
-  const displayEntries = latestEntry ? [latestEntry] : []
 
   return (
     <div className="animate-fade-in">
@@ -212,17 +266,17 @@ export default function AgentTrace({ events, isComplete, isConnected }) {
 
         {/* Timeline */}
         <div className="space-y-1">
-          {displayEntries.length === 0 && (
+          {timelineEntries.length === 0 && (
             <div className="text-center py-8 text-sm text-[var(--text-muted)]">
               <div className="shimmer w-48 h-3 rounded mx-auto mb-2" />
               <div className="shimmer w-32 h-3 rounded mx-auto" />
             </div>
           )}
-          {displayEntries.map((entry, idx) => (
+          {timelineEntries.map((entry, idx) => (
             <TimelineEntry
               key={entry.id}
               entry={entry}
-              isLast={idx === displayEntries.length - 1}
+              isLast={idx === timelineEntries.length - 1}
             />
           ))}
         </div>

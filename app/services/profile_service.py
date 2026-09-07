@@ -136,7 +136,17 @@ ROLE_MODEL_SETTINGS = {
 
 
 async def get_agent_model(agent: str, profile_id: Optional[str]) -> str:
-    """Resolve the model for a role: profile override > role setting > default."""
+    """Resolve the model for a role.
+
+    优先级：
+    1. 用户档案中的 preferred_model
+    2. 明确设置过的角色模型
+    3. 前端 LLM 配置保存的运行时模型
+    4. 默认 gpt-4o
+
+    这样配置 DeepSeek / OpenAI 兼容接口后，不会被默认角色模型
+    ``gpt-4o`` 意外覆盖。
+    """
     profile_model = await get_profile_model(profile_id)
     if profile_model:
         return profile_model
@@ -145,8 +155,16 @@ async def get_agent_model(agent: str, profile_id: Optional[str]) -> str:
     env_key = ROLE_MODEL_SETTINGS.get(agent)
     if env_key:
         configured = getattr(settings, env_key, "")
-        if configured:
+        if configured and configured != "gpt-4o":
             return configured
+    try:
+        from app.services.config_service import get_active_config
+
+        runtime = get_active_config()
+        if runtime and runtime.model:
+            return runtime.model
+    except Exception:
+        pass
     return "gpt-4o"
 
 

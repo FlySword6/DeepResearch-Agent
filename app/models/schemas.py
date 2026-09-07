@@ -64,7 +64,7 @@ class SettingsResponse(BaseModel):
 class SettingsUpdateRequest(BaseModel):
     """Request body for POST /api/settings."""
 
-    provider: str = Field(default="openai", pattern=r"^(openai|anthropic)$")
+    provider: str = Field(default="openai", pattern=r"^(openai|anthropic|deepseek)$")
     api_key: str = Field(..., min_length=1)
     model: str = Field(..., min_length=1)
     base_url: str = Field(default="")

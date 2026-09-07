@@ -1,9 +1,13 @@
-"""LLM 调用封装，支持 OpenAI 和 Anthropic。"""
+"""LLM 调用封装，支持 OpenAI、DeepSeek 和 Anthropic。"""
 
 import json
 import os
+from contextvars import ContextVar
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
+
+
+_usage_meter: ContextVar[Optional[list]] = ContextVar("usage_meter", default=None)
 
 
 class LLMConfig(BaseModel):
@@ -13,14 +17,50 @@ class LLMConfig(BaseModel):
     temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, ge=1)
     provider: str = Field(default="openai")
-    base_url: str = Field(default="https://api.deepseek.com")
+    base_url: str = Field(default="https://api.openai.com/v1")
 
 
 class LLMProvider:
     """LLM 供应商枚举值。"""
 
     OPENAI = "openai"
+    DEEPSEEK = "deepseek"
     ANTHROPIC = "anthropic"
+
+
+def set_usage_meter(meter: Optional[list]) -> None:
+    """设置当前任务的 token 用量收集器。
+
+    TaskManager 会在每个后台任务开始时传入一个 list，LLM 调用完成后
+    将 usage 信息追加进去，最终用于报告统计。传 None 表示清理当前上下文。
+    """
+    _usage_meter.set(meter)
+
+
+def _record_usage(response: Any, provider: str, model: str) -> None:
+    """从模型响应中提取 token 用量，失败时静默跳过。"""
+    meter = _usage_meter.get()
+    if meter is None:
+        return
+
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return
+
+    def _get(name: str) -> int:
+        value = getattr(usage, name, 0)
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    meter.append({
+        "provider": provider,
+        "model": model,
+        "prompt_tokens": _get("prompt_tokens") or _get("input_tokens"),
+        "completion_tokens": _get("completion_tokens") or _get("output_tokens"),
+        "total_tokens": _get("total_tokens"),
+    })
 
 
 async def llm_call(
@@ -35,7 +75,7 @@ async def llm_call(
 
     provider = config.provider.lower()
 
-    if provider == LLMProvider.OPENAI:
+    if provider in (LLMProvider.OPENAI, LLMProvider.DEEPSEEK):
         return await _call_openai(system_prompt, user_prompt, config, tools)
     elif provider == LLMProvider.ANTHROPIC:
         return await _call_anthropic(system_prompt, user_prompt, config, tools)
@@ -49,15 +89,22 @@ async def _call_openai(
     config: LLMConfig,
     tools: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
-    """调用 OpenAI 兼容 API。"""
+    """调用 OpenAI 兼容 API。
+
+    DeepSeek 兼容 OpenAI Chat Completions 协议，因此共用这个调用路径。
+    """
     from openai import AsyncOpenAI
     from app.config import settings
     from app.services.config_service import get_active_config
 
     rt = get_active_config()
-    api_key = rt.api_key if (rt and rt.api_key) else (settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY"))
+    api_key = rt.api_key if (rt and rt.api_key) else ""
+    if not api_key and config.provider.lower() == LLMProvider.DEEPSEEK:
+        api_key = settings.DEEPSEEK_API_KEY or os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
+        api_key = settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY or DEEPSEEK_API_KEY environment variable not set")
 
     base_url = rt.base_url if (rt and rt.base_url) else config.base_url
     client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=15.0, max_retries=1)
@@ -78,6 +125,7 @@ async def _call_openai(
         kwargs["tools"] = tools
 
     response = await client.chat.completions.create(**kwargs)
+    _record_usage(response, config.provider.lower(), config.model)
     return response.choices[0].message.content or ""
 
 
@@ -111,6 +159,7 @@ async def _call_anthropic(
         kwargs["tools"] = tools
 
     response = await client.messages.create(**kwargs)
+    _record_usage(response, config.provider.lower(), config.model)
     return response.content[0].text if response.content else ""
 
 

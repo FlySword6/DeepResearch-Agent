@@ -133,6 +133,69 @@ function AppInner() {
     [fetchHistory]
   )
 
+  const hydrateCompletedTask = useCallback(async (taskId) => {
+    const [reportResponse, eventsResponse] = await Promise.all([
+      authFetch(`/api/reports/${taskId}?format=markdown`),
+      authFetch(`/api/research/${taskId}/events`),
+    ])
+    const content = reportResponse.ok ? await reportResponse.text() : ''
+    const eventPayload = eventsResponse.ok
+      ? await eventsResponse.json().catch(() => ({ events: [] }))
+      : { events: [] }
+
+    setTasks((prev) => {
+      const existing = prev[taskId]
+      if (!existing) return prev
+      return {
+        ...prev,
+        [taskId]: {
+          ...existing,
+          status: content ? 'completed' : existing.status,
+          reportContent: content || existing.reportContent,
+          events: eventPayload.events?.length ? eventPayload.events : existing.events,
+          isConnected: false,
+        },
+      }
+    })
+    if (content) fetchHistory()
+  }, [authFetch, fetchHistory])
+
+  useEffect(() => {
+    if (runningTasks.length === 0) return undefined
+
+    const timer = window.setInterval(() => {
+      runningTasks.forEach(async (task) => {
+        try {
+          const statusResponse = await authFetch(`/api/research/${task.id}`)
+          if (statusResponse.ok) {
+            const statusPayload = await statusResponse.json()
+            if (statusPayload.status === 'completed' || statusPayload.status === 'failed') {
+              await hydrateCompletedTask(task.id)
+              if (statusPayload.status === 'failed') {
+                setTasks((prev) => ({
+                  ...prev,
+                  [task.id]: {
+                    ...prev[task.id],
+                    status: 'failed',
+                    error: statusPayload.errors?.[0] || prev[task.id]?.error || '任务执行失败',
+                    isConnected: false,
+                  },
+                }))
+              }
+            }
+            return
+          }
+
+          if (statusResponse.status === 404) {
+            await hydrateCompletedTask(task.id)
+          }
+        } catch {}
+      })
+    }, 3000)
+
+    return () => window.clearInterval(timer)
+  }, [runningTasks, authFetch, hydrateCompletedTask])
+
   // Load history on mount
   useEffect(() => {
     fetchHistory()
@@ -260,9 +323,15 @@ function AppInner() {
       return
     }
     try {
-      const response = await authFetch(`/api/reports/${historyTaskId}?format=markdown`)
+      const [response, eventsResponse] = await Promise.all([
+        authFetch(`/api/reports/${historyTaskId}?format=markdown`),
+        authFetch(`/api/research/${historyTaskId}/events`),
+      ])
       if (response.ok) {
         const content = await response.text()
+        const eventPayload = eventsResponse.ok
+          ? await eventsResponse.json().catch(() => ({ events: [] }))
+          : { events: [] }
         setTasks((prev) => ({
           ...prev,
           [historyTaskId]: {
@@ -271,7 +340,7 @@ function AppInner() {
             status: 'completed',
             reportContent: content,
             error: null,
-            events: prev[historyTaskId]?.events || [],
+            events: eventPayload.events || prev[historyTaskId]?.events || [],
             isConnected: false,
           },
         }))
@@ -289,6 +358,14 @@ function AppInner() {
     setSelectedIds([])
     setHistPage(1)
   }, [])
+
+  const handleNavClick = useCallback((tabId) => {
+    if (tabId === 'research') {
+      handleReset()
+      return
+    }
+    setActiveTab(tabId)
+  }, [handleReset])
 
   const handleBatchDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
@@ -331,7 +408,7 @@ function AppInner() {
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => handleNavClick(item.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-all ${
                 activeTab === item.id
                   ? 'text-[var(--accent)] bg-[var(--accent-glow)] font-medium'
@@ -630,11 +707,11 @@ function AppInner() {
         {activeTab === 'research' && hasActiveResearch && (
           <>
             <div className="-my-8 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
-              {activeStatus === 'running' && (
-                <div className="shrink-0 pb-4">
+              {activeEvents.length > 0 && (
+                <div className="shrink-0 pb-4 max-h-[36vh] overflow-y-auto pr-1">
                   <AgentTrace
                     events={activeEvents}
-                    isComplete={false}
+                    isComplete={activeStatus === 'completed'}
                     isConnected={isConnected}
                   />
                 </div>
@@ -691,10 +768,50 @@ function AppInner() {
   )
 }
 
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, message: '' }
+  }
+
+  static getDerivedStateFromError(error) {
+    return {
+      hasError: true,
+      message: error?.message || '页面渲染异常',
+    }
+  }
+
+  componentDidCatch(error) {
+    console.error('App render failed:', error)
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)] px-6">
+        <div className="glass-card max-w-md w-full p-6 text-center">
+          <h1 className="text-lg font-semibold text-[var(--text-primary)]">页面渲染失败</h1>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">{this.state.message}</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[var(--accent)]"
+          >
+            刷新页面
+          </button>
+        </div>
+      </div>
+    )
+  }
+}
+
 export default function App() {
   return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
+    </AppErrorBoundary>
   )
 }

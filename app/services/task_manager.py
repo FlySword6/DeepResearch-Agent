@@ -50,6 +50,7 @@ class TaskInfo:
         self.created_at: str = datetime.now().isoformat()
         self.completed_at: Optional[str] = None
         self.event_queues: List[asyncio.Queue] = []
+        self.event_seq: int = 0
         self.current_step: int = 0
         self.iteration_count: int = 0
         self.workspace_dir: str = ""
@@ -128,8 +129,14 @@ class TaskManager:
         if not task_info:
             return
 
-        event_data = {"type": event_type, **data}
+        task_info.event_seq += 1
+        event_seq = task_info.event_seq
+        event_data = {"type": event_type, "seq": event_seq, **data}
         task_info.events.append(event_data)
+        try:
+            asyncio.create_task(self._persist_event(task_id, event_type, data, event_seq))
+        except RuntimeError:
+            logger.debug("No running event loop; skip persisting event for %s", task_id)
 
         dead_queues: List[asyncio.Queue] = []
         for q in task_info.event_queues:
@@ -597,6 +604,25 @@ class TaskManager:
                     await repo.update(task)
         except Exception as exc:
             logger.warning("Failed to persist status for %s: %s", task_id, exc)
+
+    async def _persist_event(
+        self,
+        task_id: str,
+        event_type: str,
+        data: Dict[str, Any],
+        event_seq: int,
+    ) -> None:
+        """Persist one task event for later history playback."""
+        try:
+            from app.models.database import TaskEventRepository, _async_session_maker
+
+            if _async_session_maker is None:
+                return
+            async with _async_session_maker() as session:
+                repo = TaskEventRepository(session)
+                await repo.add_event(task_id, event_type, data, event_seq=event_seq)
+        except Exception as exc:
+            logger.debug("Failed to persist event for %s: %s", task_id, exc)
 
     async def _persist_completion(
         self,

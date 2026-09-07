@@ -18,8 +18,10 @@ class Settings(BaseSettings):
     # LLM API Keys
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+    DEEPSEEK_API_KEY: Optional[str] = None
     DASHSCOPE_API_KEY: Optional[str] = None
     OPENAI_BASE_URL: Optional[str] = None
+    DEEPSEEK_BASE_URL: Optional[str] = None
     EMBEDDING_API_KEY: Optional[str] = None
     EMBEDDING_BASE_URL: Optional[str] = None
     EMBEDDING_MODEL: Optional[str] = None
